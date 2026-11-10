@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0f17">
+  <title>Отзывы — ИИ-автоматизация и проектирование</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect rx='16' width='64' height='64' fill='%23111a2b'/%3E%3Cpath d='M18 34l8 8 20-22' stroke='%236ee7d2' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="app">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="avatar" id="ownerAvatar" aria-hidden="true">AI</div>
+        <div class="hero-meta">
+          <p class="eyebrow" id="demoBadge" hidden>Демо-режим</p>
+          <h1 id="ownerName">Ваше имя</h1>
+          <p class="tagline" id="ownerTagline">ИИ-автоматизация техподдержки и проектирование</p>
+        </div>
+      </div>
+      <p class="lead">
+        Помогаю разгрузить техподдержку с помощью ИИ и проектирую решения, которые реально работают.
+        Здесь — отзывы клиентов о совместной работе.
+      </p>
+      <div class="services" role="list">
+        <article class="service-card" role="listitem">
+          <div class="service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h3l2-7 4 14 2-7h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h2>ИИ-автоматизация техподдержки</h2>
+          <p>Боты, сценарии и ИИ-ассистенты, которые отвечают клиентам 24/7 и снимают рутину с команды.</p>
+        </article>
+        <article class="service-card" role="listitem">
+          <div class="service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 16V9m4 7V7m4 9v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <h2>Проектирование</h2>
+          <p>Продуманные технические и продуктовые решения: от архитектуры системы до удобных интерфейсов.</p>
+        </article>
+      </div>
+    </header>
+
+    <section class="rating-panel" aria-label="Сводный рейтинг">
+      <div class="rating-main">
+        <div class="rating-score" id="avgScore">—</div>
+        <div>
+          <div class="stars-static" id="avgStars" aria-hidden="true"></div>
+          <p class="rating-count" id="ratingCount">Пока нет опубликованных отзывов</p>
+        </div>
+      </div>
+      <div class="rating-bars" id="ratingBars" hidden></div>
+    </section>
+
+    <div class="banner" id="statusBanner" hidden></div>
+
+    <section class="reviews-section" aria-labelledby="reviewsTitle">
+      <div class="section-head">
+        <h2 id="reviewsTitle">Отзывы</h2>
+        <div class="filters" role="tablist" aria-label="Фильтр по направлению">
+          <button type="button" class="chip is-active" data-filter="all" role="tab" aria-selected="true">Все</button>
+          <button type="button" class="chip" data-filter="support" role="tab" aria-selected="false">ИИ-техподдержка</button>
+          <button type="button" class="chip" data-filter="design" role="tab" aria-selected="false">Проектирование</button>
+        </div>
+      </div>
+      <div class="review-list" id="reviewList"></div>
+      <p class="empty" id="emptyState" hidden>В этой категории пока нет отзывов. Станьте первым.</p>
+    </section>
+
+    <section class="form-section" id="reviewFormSection" aria-labelledby="formTitle">
+      <h2 id="formTitle">Оставить отзыв</h2>
+      <p class="form-intro" id="formIntro">Коротко расскажите, как прошла работа. Отзыв появится после проверки.</p>
+      <form id="reviewForm" novalidate>
+        <label class="field">
+          <span>Ваше имя</span>
+          <input type="text" id="nameInput" name="name" maxlength="80" autocomplete="name" required placeholder="Как к вам обращаться">
+        </label>
+
+        <fieldset class="field">
+          <legend>Оценка</legend>
+          <div class="star-picker" id="starPicker">
+            <button type="button" data-star="1" aria-label="1 звезда">★</button>
+            <button type="button" data-star="2" aria-label="2 звезды">★</button>
+            <button type="button" data-star="3" aria-label="3 звезды">★</button>
+            <button type="button" data-star="4" aria-label="4 звезды">★</button>
+            <button type="button" data-star="5" aria-label="5 звёзд">★</button>
+          </div>
+          <input type="hidden" id="starsInput" name="stars" value="5">
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>Направление</legend>
+          <div class="category-picker">
+            <label class="choice">
+              <input type="radio" name="category" value="support" checked>
+              <span>ИИ-автоматизация техподдержки</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="category" value="design">
+              <span>Проектирование</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label class="field">
+          <span>Отзыв</span>
+          <textarea id="textInput" name="text" rows="5" required placeholder="Что было сделано и какой получили результат?"></textarea>
+          <span class="char-count" id="charCount">0 / 1000</span>
+        </label>
+
+        <p class="form-error" id="formError" hidden></p>
+        <p class="form-ok" id="formOk" hidden></p>
+
+        <button type="submit" class="submit-btn" id="submitBtn">Отправить отзыв</button>
+      </form>
+    </section>
+
+    <footer class="footer">
+      <p id="footerNote">Бесплатная витрина отзывов · Telegram Mini App</p>
+      <a id="contactLink" class="contact-link" hidden href="#" rel="noopener">Написать в Telegram</a>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
