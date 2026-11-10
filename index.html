@@ -20,14 +20,14 @@
       <div class="hero-top">
         <div class="avatar" id="ownerAvatar" aria-hidden="true">AI</div>
         <div class="hero-meta">
-          <p class="eyebrow" id="demoBadge" hidden>Демо-режим</p>
           <h1 id="ownerName">Ваше имя</h1>
           <p class="tagline" id="ownerTagline">ИИ-автоматизация техподдержки и проектирование</p>
         </div>
       </div>
       <p class="lead">
-        Помогаю разгрузить техподдержку с помощью ИИ и проектирую решения, которые реально работают.
-        Здесь — отзывы клиентов о совместной работе.
+        Студент СПбГАСУ, направление «Уникальные здания и сооружения».
+        Помогаю автоматизировать техподдержку с помощью ИИ и проектирую здания в Renga.
+        Здесь можно оставить отзыв о совместной работе.
       </p>
       <div class="services" role="list">
         <article class="service-card" role="listitem">
@@ -35,24 +35,34 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h3l2-7 4 14 2-7h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <h2>ИИ-автоматизация техподдержки</h2>
-          <p>Боты, сценарии и ИИ-ассистенты, которые отвечают клиентам 24/7 и снимают рутину с команды.</p>
+          <p>Боты, сценарии и ИИ-ассистенты, которые отвечают клиентам и снимают рутину с команды.</p>
+          <ul class="service-tags">
+            <li>ИИ-ассистенты</li>
+            <li>Telegram-боты</li>
+            <li>Автоматизация</li>
+          </ul>
         </article>
         <article class="service-card" role="listitem">
           <div class="service-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 16V9m4 7V7m4 9v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 20V8.5L12 4l8 4.5V20M8 20v-6h8v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </div>
           <h2>Проектирование</h2>
-          <p>Продуманные технические и продуктовые решения: от архитектуры системы до удобных интерфейсов.</p>
+          <p>Информационные модели зданий в Renga (BIM/ТИМ), чертежи и проектная документация.</p>
+          <ul class="service-tags">
+            <li>Renga</li>
+            <li>BIM / ТИМ</li>
+            <li>Чертежи</li>
+          </ul>
         </article>
       </div>
     </header>
 
-    <section class="rating-panel" aria-label="Сводный рейтинг">
+    <section class="rating-panel" id="ratingPanel" aria-label="Сводный рейтинг">
       <div class="rating-main">
         <div class="rating-score" id="avgScore">—</div>
         <div>
-          <div class="stars-static" id="avgStars" aria-hidden="true"></div>
-          <p class="rating-count" id="ratingCount">Пока нет опубликованных отзывов</p>
+          <div class="stars-static" id="avgStars" hidden></div>
+          <p class="rating-count" id="ratingCount">Пока нет оценок</p>
         </div>
       </div>
       <div class="rating-bars" id="ratingBars" hidden></div>
@@ -70,12 +80,19 @@
         </div>
       </div>
       <div class="review-list" id="reviewList"></div>
-      <p class="empty" id="emptyState" hidden>В этой категории пока нет отзывов. Станьте первым.</p>
+      <div class="empty-state" id="emptyState" hidden>
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 16.5V6.8A1.8 1.8 0 0 1 6.8 5h10.4A1.8 1.8 0 0 1 19 6.8v9.7l-3.2-1.7H6.8A1.8 1.8 0 0 0 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 9.2h7M8.5 12h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <p class="empty-title" id="emptyTitle">Отзывов пока нет — станьте первым!</p>
+        <p class="empty-text" id="emptyText">Расскажите, как прошла совместная работа.</p>
+        <button type="button" class="empty-cta" id="emptyCta">Оставить отзыв</button>
+      </div>
     </section>
 
     <section class="form-section" id="reviewFormSection" aria-labelledby="formTitle">
       <h2 id="formTitle">Оставить отзыв</h2>
-      <p class="form-intro" id="formIntro">Коротко расскажите, как прошла работа. Отзыв появится после проверки.</p>
+      <p class="form-intro" id="formIntro">Коротко расскажите, как прошла работа.</p>
       <form id="reviewForm" novalidate>
         <label class="field">
           <span>Ваше имя</span>

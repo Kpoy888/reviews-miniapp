@@ -184,6 +184,31 @@ h1 {
   color: var(--tg-theme-hint-color, var(--muted));
 }
 
+.service-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+  list-style: none;
+}
+
+.service-tags li {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(110, 231, 210, 0.2);
+}
+
+html[data-theme="light"] .service-tags li {
+  border-color: rgba(15, 157, 138, 0.22);
+}
+
 .rating-panel {
   margin: 18px 0 14px;
   padding: 16px;
@@ -205,6 +230,12 @@ h1 {
   letter-spacing: -0.04em;
   line-height: 1;
   min-width: 72px;
+}
+
+.rating-panel.is-empty .rating-score {
+  color: var(--muted);
+  font-family: var(--font);
+  font-weight: 600;
 }
 
 .stars-static,
@@ -376,30 +407,75 @@ h1 {
   color: var(--muted);
 }
 
-.badge.is-demo {
-  background: rgba(245, 193, 74, 0.14);
-  color: #f5c14a;
-}
-
-html[data-theme="light"] .badge.is-demo {
-  color: #9a6b00;
-}
-
 .review-text {
   margin-top: 10px;
   font-size: 0.92rem;
   line-height: 1.55;
 }
 
-.empty, .form-intro, .footer {
+.form-intro, .footer {
   color: var(--tg-theme-hint-color, var(--muted));
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
-.empty {
-  padding: 22px 8px 10px;
+.empty-state {
+  margin-top: 2px;
+  padding: 26px 18px 22px;
   text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: rise 0.45s ease both;
+}
+
+.empty-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.empty-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.empty-title {
+  font-family: var(--display);
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+}
+
+.empty-text {
+  margin: 6px 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--tg-theme-hint-color, var(--muted));
+}
+
+.empty-cta {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--tg-theme-button-text-color, #042924);
+  background: linear-gradient(135deg, var(--tg-theme-button-color, var(--accent)), #8b9cff);
+  box-shadow: 0 8px 20px rgba(110, 231, 210, 0.16);
+}
+
+.empty-cta:hover {
+  transform: translateY(-1px);
 }
 
 .form-section {
@@ -519,6 +595,18 @@ textarea:focus {
 .form-error { color: var(--danger); }
 .form-ok { color: var(--ok); }
 
+.form-ok a,
+.form-tg-link {
+  color: var(--tg-theme-link-color, var(--accent));
+  font-weight: 800;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.form-section {
+  scroll-margin-top: 16px;
+}
+
 .submit-btn {
   width: 100%;
   border: 0;
@@ -579,7 +667,7 @@ body.is-telegram .submit-btn {
   }
 
   .lead {
-    margin: 14px 0 12px;
+    margin: 12px 0 10px;
     font-size: 0.92rem;
   }
 
@@ -591,14 +679,43 @@ body.is-telegram .submit-btn {
     font-size: 0.72rem;
   }
 
+  .service-tags {
+    margin-top: 8px;
+  }
+
+  .empty-state {
+    padding: 18px 14px 16px;
+  }
+
+  .empty-icon {
+    width: 46px;
+    height: 46px;
+    margin-bottom: 8px;
+  }
+
+  .empty-text {
+    margin: 4px 0 12px;
+  }
+
   .rating-panel {
-    margin: 14px 0 12px;
-    padding: 14px;
+    margin: 12px 0 10px;
+    padding: 12px 14px;
+  }
+
+  .rating-panel.is-empty .rating-score {
+    font-family: var(--font);
+    font-size: 2rem;
+    min-width: 44px;
   }
 
   .rating-score {
     font-size: 2.1rem;
     min-width: 62px;
+  }
+
+  .section-head {
+    margin: 4px 0 10px;
+    gap: 10px;
   }
 
   .banner {

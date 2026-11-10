@@ -6,45 +6,6 @@
     design: "Проектирование"
   };
 
-  var DEMO_REVIEWS = [
-    {
-      id: "demo-1",
-      name: "Мария К.",
-      stars: 5,
-      category: "support",
-      text: "Настроили ИИ-ассистента для первой линии поддержки. Типовые вопросы теперь закрываются автоматически, команда занимается сложными кейсами. Запуск прошёл спокойно и по делу.",
-      createdAt: "2026-09-18T10:00:00.000Z",
-      demo: true
-    },
-    {
-      id: "demo-2",
-      name: "Игорь С.",
-      stars: 5,
-      category: "design",
-      text: "Помогли спроектировать логику сервиса и интерфейс кабинета. Всё разложили по шагам, без воды, в итоге команда сразу поняла, что внедрять.",
-      createdAt: "2026-08-03T10:00:00.000Z",
-      demo: true
-    },
-    {
-      id: "demo-3",
-      name: "Анна П.",
-      stars: 4,
-      category: "support",
-      text: "Автоматизировали ответы в Telegram и почте. После доработки сценариев качество ответов заметно выросло, нагрузка на ночные смены снизилась.",
-      createdAt: "2026-07-21T10:00:00.000Z",
-      demo: true
-    },
-    {
-      id: "demo-4",
-      name: "Денис Л.",
-      stars: 5,
-      category: "design",
-      text: "Заказывали проектирование внутреннего процесса и схемы интеграций. Документация получилась понятной, по ней уже собрали рабочий прототип.",
-      createdAt: "2026-06-12T10:00:00.000Z",
-      demo: true
-    }
-  ];
-
   var config = window.MINIAPP_CONFIG || {};
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 
@@ -60,7 +21,6 @@
   var state = {
     reviews: [],
     filter: "all",
-    demo: true,
     outsideTelegram: !inTelegram(),
     submitting: false,
     user: null
@@ -96,7 +56,7 @@
         day: "numeric",
         month: "long",
         year: "numeric",
-        timeZone: "Europe/Berlin"
+        timeZone: "Europe/Amsterdam"
       }).format(new Date(iso));
     } catch (e) {
       return "";
@@ -114,6 +74,27 @@
 
   function backendUrl() {
     return String(config.APPS_SCRIPT_URL || "").trim();
+  }
+
+  function telegramHandle() {
+    return String(config.TELEGRAM_USERNAME || "").replace(/^@/, "").trim();
+  }
+
+  function telegramHref() {
+    var handle = telegramHandle();
+    return handle ? "https://t.me/" + encodeURIComponent(handle) : "";
+  }
+
+  function openTelegramLink(url, event) {
+    if (!url) return;
+    if (event) event.preventDefault();
+    if (inTelegram() && tg && typeof tg.openTelegramLink === "function") {
+      try {
+        tg.openTelegramLink(url);
+        return;
+      } catch (e) {}
+    }
+    window.open(url, "_blank", "noopener");
   }
 
   function applyTheme() {
@@ -171,11 +152,17 @@
     els.ownerName.textContent = name;
     els.ownerTagline.textContent = config.OWNER_TITLE || config.OWNER_TAGLINE || "";
     els.ownerAvatar.textContent = initials(name);
-    if (config.TELEGRAM_USERNAME) {
-      var handle = String(config.TELEGRAM_USERNAME).replace(/^@/, "");
+    var href = telegramHref();
+    if (href) {
+      var handle = telegramHandle();
       els.contactLink.hidden = false;
-      els.contactLink.href = "https://t.me/" + encodeURIComponent(handle);
+      els.contactLink.href = href;
       els.contactLink.textContent = "Написать @" + handle;
+    }
+    if (backendUrl()) {
+      els.formIntro.textContent = "Коротко расскажите, как прошла работа. Отзыв появится после проверки.";
+    } else {
+      els.formIntro.textContent = "Коротко расскажите, как прошла работа.";
     }
   }
 
@@ -206,15 +193,20 @@
 
   function renderRating(reviews) {
     var stats = computeStats(reviews);
+    var panel = els.ratingPanel;
     if (!stats.count) {
+      if (panel) panel.classList.add("is-empty");
       els.avgScore.textContent = "—";
-      els.avgStars.innerHTML = starsHtml(0);
-      els.ratingCount.textContent = "Пока нет опубликованных отзывов";
+      els.avgStars.innerHTML = "";
+      els.avgStars.hidden = true;
+      els.ratingCount.textContent = "Пока нет оценок";
       els.ratingBars.hidden = true;
       els.ratingBars.innerHTML = "";
       return;
     }
+    if (panel) panel.classList.remove("is-empty");
     els.avgScore.textContent = stats.avg.toFixed(1).replace(".", ",");
+    els.avgStars.hidden = false;
     els.avgStars.innerHTML = starsHtml(Math.round(stats.avg));
     els.ratingCount.textContent =
       stats.count + " " + plural(stats.count, "отзыв", "отзыва", "отзывов");
@@ -242,6 +234,21 @@
     return many;
   }
 
+  function renderEmptyState(filteredCount, totalCount) {
+    if (filteredCount) {
+      els.emptyState.hidden = true;
+      return;
+    }
+    els.emptyState.hidden = false;
+    if (totalCount === 0) {
+      els.emptyTitle.textContent = "Отзывов пока нет — станьте первым!";
+      els.emptyText.textContent = "Расскажите, как прошла совместная работа.";
+    } else {
+      els.emptyTitle.textContent = "В этой категории пока нет отзывов";
+      els.emptyText.textContent = "Можно выбрать другой фильтр или оставить свой отзыв.";
+    }
+  }
+
   function renderReviews() {
     var filtered = state.reviews.filter(function (r) {
       return state.filter === "all" || r.category === state.filter;
@@ -249,14 +256,12 @@
     renderRating(state.reviews);
     if (!filtered.length) {
       els.reviewList.innerHTML = "";
-      els.emptyState.hidden = false;
+      renderEmptyState(0, state.reviews.length);
       return;
     }
-    els.emptyState.hidden = true;
+    renderEmptyState(filtered.length, state.reviews.length);
     els.reviewList.innerHTML = filtered
       .map(function (r, index) {
-        var demoBadge = r.demo ? '<span class="badge is-demo">пример</span>' : "";
-        var localBadge = r.local ? '<span class="badge is-demo">только на этом устройстве</span>' : "";
         return (
           '<article class="review-card" style="animation-delay:' +
           index * 40 +
@@ -275,10 +280,7 @@
           "</div>" +
           '<div><span class="badge">' +
           escapeHtml(CATEGORIES[r.category] || r.category) +
-          "</span>" +
-          demoBadge +
-          localBadge +
-          "</div>" +
+          "</span></div>" +
           '<p class="review-text">' +
           escapeHtml(r.text) +
           "</p>" +
@@ -313,11 +315,35 @@
     els.charCount.textContent = len + " / " + max;
   }
 
-  function showFormMessage(okText, errText) {
-    els.formOk.hidden = !okText;
+  function showFormMessage(okText, errText, okHtml) {
+    els.formOk.hidden = !(okText || okHtml);
     els.formError.hidden = !errText;
-    els.formOk.textContent = okText || "";
+    if (okHtml) {
+      els.formOk.innerHTML = okHtml;
+    } else {
+      els.formOk.textContent = okText || "";
+    }
     els.formError.textContent = errText || "";
+  }
+
+  function thanksWithoutBackendHtml() {
+    var href = telegramHref();
+    var html = "Спасибо! Приём отзывов скоро заработает";
+    if (!href) return html + ".";
+    return (
+      html +
+      ", а пока можно <a href=\"" +
+      escapeHtml(href) +
+      "\" class=\"form-tg-link\" id=\"formTgLink\">написать мне в Telegram</a>."
+    );
+  }
+
+  function bindFormTelegramLink() {
+    var link = $("formTgLink");
+    if (!link) return;
+    link.addEventListener("click", function (event) {
+      openTelegramLink(link.href, event);
+    });
   }
 
   function validate(payload) {
@@ -347,26 +373,6 @@
     };
   }
 
-  function localDemoKey() {
-    return "miniapp_local_reviews_v1";
-  }
-
-  function loadLocalReviews() {
-    try {
-      var raw = localStorage.getItem(localDemoKey());
-      var list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveLocalReview(review) {
-    var list = loadLocalReviews();
-    list.unshift(review);
-    localStorage.setItem(localDemoKey(), JSON.stringify(list.slice(0, 20)));
-  }
-
   function parseResponse(res) {
     if (!res) return null;
     if (res.reviews) return res;
@@ -384,9 +390,7 @@
           stars: Number(r.stars) || 0,
           category: r.category === "design" ? "design" : "support",
           text: String(r.text || ""),
-          createdAt: r.createdAt || r.date || new Date().toISOString(),
-          demo: !!r.demo,
-          local: !!r.local
+          createdAt: r.createdAt || r.date || new Date().toISOString()
         };
       })
       .sort(function (a, b) {
@@ -401,6 +405,7 @@
         cleanup();
         reject(new Error("timeout"));
       }, 12000);
+      var script;
       function cleanup() {
         clearTimeout(timer);
         delete window[cbName];
@@ -410,7 +415,7 @@
         cleanup();
         resolve(data);
       };
-      var script = document.createElement("script");
+      script = document.createElement("script");
       var join = url.indexOf("?") === -1 ? "?" : "&";
       script.src = url + join + "callback=" + encodeURIComponent(cbName);
       script.onerror = function () {
@@ -424,8 +429,11 @@
   function loadReviews() {
     var url = backendUrl();
     els.reviewList.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+    els.emptyState.hidden = true;
     if (!url) {
-      enterDemo("Показаны примеры отзывов. Чтобы публиковать настоящие, укажите URL Google Apps Script в config.js.");
+      state.reviews = [];
+      setBanner("");
+      renderReviews();
       return Promise.resolve();
     }
     return fetch(url, { method: "GET", credentials: "omit" })
@@ -438,34 +446,17 @@
         return jsonp(url).then(applyBackendReviews);
       })
       .catch(function () {
-        enterDemo(
-          "Не удалось связаться с таблицей отзывов. Показаны примеры. Проверьте URL в config.js и доступ веб-приложения Apps Script.",
-          true
-        );
+        state.reviews = [];
+        setBanner("Не удалось загрузить отзывы. Попробуйте открыть страницу ещё раз чуть позже.", true);
+        renderReviews();
       });
   }
 
   function applyBackendReviews(payload) {
     var data = parseResponse(payload) || {};
     if (data.ok === false) throw new Error(data.error || "fail");
-    state.demo = false;
-    els.demoBadge.hidden = true;
     state.reviews = normalizeReviews(data.reviews || []);
-    var parts = [];
-    if (state.outsideTelegram) {
-      parts.push("Вы открыли страницу в браузере. В Telegram она откроется как Mini App, с вашим именем и кнопкой отправки.");
-    }
-    parts.push("Новые отзывы появляются после проверки в Google-таблице.");
-    setBanner(parts.join(" "));
-    renderReviews();
-  }
-
-  function enterDemo(message, warn) {
-    state.demo = true;
-    els.demoBadge.hidden = false;
-    var local = loadLocalReviews();
-    state.reviews = normalizeReviews(local.concat(DEMO_REVIEWS));
-    setBanner(message, warn);
+    setBanner("");
     renderReviews();
   }
 
@@ -501,6 +492,16 @@
     });
   }
 
+  function resetFormFields() {
+    els.reviewForm.reset();
+    if (state.user) {
+      var fullName = [state.user.first_name, state.user.last_name].filter(Boolean).join(" ");
+      els.nameInput.value = fullName;
+    }
+    setStars(5);
+    updateCharCount();
+  }
+
   function submitForm(event) {
     if (event) event.preventDefault();
     if (state.submitting) return;
@@ -519,52 +520,27 @@
       tg.MainButton.disable();
     }
 
-    var finish = function (okText, errText) {
+    var finish = function (okText, errText, okHtml) {
       state.submitting = false;
       els.submitBtn.disabled = false;
       if (tg && tg.MainButton) {
         tg.MainButton.hideProgress();
         tg.MainButton.enable();
       }
-      showFormMessage(okText, errText);
-      haptic(okText ? "success" : "error");
+      showFormMessage(okText, errText, okHtml);
+      if (okHtml) bindFormTelegramLink();
+      haptic(okText || okHtml ? "success" : "error");
     };
 
     if (!backendUrl()) {
-      saveLocalReview({
-        id: "local-" + Date.now(),
-        name: payload.name,
-        stars: payload.stars,
-        category: payload.category,
-        text: payload.text,
-        createdAt: new Date().toISOString(),
-        local: true
-      });
-      state.reviews = normalizeReviews(loadLocalReviews().concat(DEMO_REVIEWS));
-      renderReviews();
-      els.reviewForm.reset();
-      if (state.user) {
-        var fullName = [state.user.first_name, state.user.last_name].filter(Boolean).join(" ");
-        els.nameInput.value = fullName;
-      }
-      setStars(5);
-      updateCharCount();
-      finish(
-        "В демо-режиме отзыв сохранён только на этом устройстве и помечен как локальный. Чтобы отзывы шли в таблицу и проходили модерацию, укажите URL Google Apps Script в config.js.",
-        ""
-      );
+      resetFormFields();
+      finish("", "", thanksWithoutBackendHtml());
       return;
     }
 
     postReview(payload)
       .then(function () {
-        els.reviewForm.reset();
-        if (state.user) {
-          var fullName = [state.user.first_name, state.user.last_name].filter(Boolean).join(" ");
-          els.nameInput.value = fullName;
-        }
-        setStars(5);
-        updateCharCount();
+        resetFormFields();
         finish("Спасибо! Отзыв отправлен на проверку и появится на витрине после одобрения.", "");
       })
       .catch(function (err) {
@@ -572,12 +548,27 @@
       });
   }
 
+  function scrollToForm() {
+    var section = $("reviewFormSection");
+    if (section && section.scrollIntoView) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (els.nameInput) {
+      try {
+        els.nameInput.focus({ preventScroll: true });
+      } catch (e) {
+        els.nameInput.focus();
+      }
+    }
+    haptic("light");
+  }
+
   function cacheElements() {
     [
       "ownerAvatar",
-      "demoBadge",
       "ownerName",
       "ownerTagline",
+      "ratingPanel",
       "avgScore",
       "avgStars",
       "ratingCount",
@@ -585,6 +576,9 @@
       "statusBanner",
       "reviewList",
       "emptyState",
+      "emptyTitle",
+      "emptyText",
+      "emptyCta",
       "reviewForm",
       "formIntro",
       "nameInput",
@@ -616,6 +610,14 @@
     });
     els.textInput.addEventListener("input", updateCharCount);
     els.reviewForm.addEventListener("submit", submitForm);
+    if (els.emptyCta) {
+      els.emptyCta.addEventListener("click", scrollToForm);
+    }
+    if (els.contactLink) {
+      els.contactLink.addEventListener("click", function (event) {
+        openTelegramLink(els.contactLink.href, event);
+      });
+    }
   }
 
   document.addEventListener("DOMContentLoaded", function () {
