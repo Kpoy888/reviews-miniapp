@@ -6,7 +6,7 @@
  */
 window.MINIAPP_CONFIG = {
   // URL вида https://script.google.com/macros/s/...../exec
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzEFY_8UAAn_q7muAQBKpKpYNabHbuXVpn0su5_cUs8e5yKOwPssVgIY9hOOYIy0JCqgg/exec",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxQsV6HkyoPoChcSE8inVkyU5CdLBUY5Q_Wvgvho48Ze3vxwNQpAtseDg2jsobdy6B4ZQ/exec",
 
   // Как вас представлять на витрине (поменяйте на своё имя)
   OWNER_NAME: "Пащенко Владимир Владимирович",
