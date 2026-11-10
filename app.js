@@ -5,6 +5,10 @@
     support: "ИИ-автоматизация техподдержки",
     design: "Проектирование"
   };
+  var MAX_IMAGE_SIDE = 1600;
+  var JPEG_QUALITY = 0.85;
+  var MAX_CERT_DESC = 500;
+  var MAX_FILE_BYTES = 5 * 1024 * 1024;
 
   var config = window.MINIAPP_CONFIG || {};
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -20,9 +24,13 @@
 
   var state = {
     reviews: [],
+    certificates: [],
     filter: "all",
+    tab: "reviews",
     outsideTelegram: !inTelegram(),
     submitting: false,
+    certSubmitting: false,
+    certPreparedFile: null,
     user: null
   };
 
@@ -85,6 +93,22 @@
     return handle ? "https://t.me/" + encodeURIComponent(handle) : "";
   }
 
+  function ownerTelegramId() {
+    return String(config.OWNER_TELEGRAM_ID || "").trim();
+  }
+
+  function isOwner() {
+    var expected = ownerTelegramId();
+    if (!expected) return false;
+    var user = state.user || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user);
+    if (!user || user.id == null || user.id === "") return false;
+    return String(user.id) === expected;
+  }
+
+  function initDataString() {
+    return tg && tg.initData ? String(tg.initData) : "";
+  }
+
   function openTelegramLink(url, event) {
     if (!url) return;
     if (event) event.preventDefault();
@@ -95,6 +119,18 @@
       } catch (e) {}
     }
     window.open(url, "_blank", "noopener");
+  }
+
+  function openExternalLink(url, event) {
+    if (!url) return;
+    if (event) event.preventDefault();
+    if (inTelegram() && tg && typeof tg.openLink === "function") {
+      try {
+        tg.openLink(url);
+        return;
+      } catch (e) {}
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function applyTheme() {
@@ -110,9 +146,22 @@
     } catch (e) {}
   }
 
+  function updateMainButton() {
+    if (!inTelegram() || !tg || !tg.MainButton) return;
+    try {
+      if (state.tab === "reviews") {
+        tg.MainButton.setText("Отправить отзыв");
+        tg.MainButton.show();
+      } else {
+        tg.MainButton.hide();
+      }
+    } catch (e) {}
+  }
+
   function initTelegram() {
     if (!inTelegram()) {
       applyTheme();
+      updateOwnerUi();
       return;
     }
     tg.ready();
@@ -133,11 +182,12 @@
       tg.MainButton.onClick(function () {
         submitForm();
       });
-      tg.MainButton.show();
     }
     if (tg.onEvent) {
       tg.onEvent("themeChanged", applyTheme);
     }
+    updateOwnerUi();
+    updateMainButton();
   }
 
   function initials(name) {
@@ -175,6 +225,18 @@
     els.statusBanner.hidden = false;
     els.statusBanner.textContent = text;
     els.statusBanner.classList.toggle("is-warn", !!warn);
+  }
+
+  function setCertsBanner(text, warn) {
+    if (!els.certsBanner) return;
+    if (!text) {
+      els.certsBanner.hidden = true;
+      els.certsBanner.textContent = "";
+      return;
+    }
+    els.certsBanner.hidden = false;
+    els.certsBanner.textContent = text;
+    els.certsBanner.classList.toggle("is-warn", !!warn);
   }
 
   function computeStats(reviews) {
@@ -315,6 +377,12 @@
     els.charCount.textContent = len + " / " + max;
   }
 
+  function updateCertDescCount() {
+    if (!els.certDescCount) return;
+    var len = (els.certDescInput.value || "").trim().length;
+    els.certDescCount.textContent = len + " / " + MAX_CERT_DESC;
+  }
+
   function showFormMessage(okText, errText, okHtml) {
     els.formOk.hidden = !(okText || okHtml);
     els.formError.hidden = !errText;
@@ -324,6 +392,14 @@
       els.formOk.textContent = okText || "";
     }
     els.formError.textContent = errText || "";
+  }
+
+  function showCertFormMessage(okText, errText) {
+    if (!els.certFormOk) return;
+    els.certFormOk.hidden = !okText;
+    els.certFormError.hidden = !errText;
+    els.certFormOk.textContent = okText || "";
+    els.certFormError.textContent = errText || "";
   }
 
   function thanksWithoutBackendHtml() {
@@ -369,14 +445,14 @@
       text: (els.textInput.value || "").trim(),
       telegramId: state.user && state.user.id ? String(state.user.id) : "",
       telegramUsername: state.user && state.user.username ? String(state.user.username) : "",
-      initData: tg && tg.initData ? tg.initData : ""
+      initData: initDataString()
     };
   }
 
   function parseResponse(res) {
     if (!res) return null;
-    if (res.reviews) return res;
-    if (res.data && res.data.reviews) return res.data;
+    if (res.reviews || res.certificates) return res;
+    if (res.data && (res.data.reviews || res.data.certificates)) return res.data;
     return res;
   }
 
@@ -394,6 +470,35 @@
         };
       })
       .sort(function (a, b) {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+  }
+
+  function normalizeCertificates(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .map(function (c) {
+        var imageUrl = String(c.imageUrl || c.image_url || "");
+        var isPdf = c.isPdf === true || /\/file\/d\//.test(imageUrl) || /\.pdf($|\?)/i.test(imageUrl);
+        return {
+          id: String(c.id || ""),
+          title: String(c.title || ""),
+          issuer: String(c.issuer || ""),
+          year: String(c.year || ""),
+          description: String(c.description || ""),
+          link: String(c.link || ""),
+          imageUrl: imageUrl,
+          imageFileId: String(c.imageFileId || c.image_file_id || ""),
+          isPdf: isPdf,
+          createdAt: c.createdAt || c.created_at || ""
+        };
+      })
+      .filter(function (c) {
+        return !!c.id;
+      })
+      .sort(function (a, b) {
+        var yearDiff = (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
+        if (yearDiff) return yearDiff;
         return new Date(b.createdAt) - new Date(a.createdAt);
       });
   }
@@ -424,6 +529,16 @@
       };
       document.head.appendChild(script);
     });
+  }
+
+  function withQuery(url, params) {
+    var parts = [];
+    Object.keys(params).forEach(function (key) {
+      if (params[key] == null || params[key] === "") return;
+      parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(params[key]));
+    });
+    if (!parts.length) return url;
+    return url + (url.indexOf("?") === -1 ? "?" : "&") + parts.join("&");
   }
 
   function loadReviews() {
@@ -460,7 +575,185 @@
     renderReviews();
   }
 
-  function postReview(payload) {
+  function loadCertificates() {
+    var url = backendUrl();
+    if (!els.certsGrid) return Promise.resolve();
+    els.certsGrid.innerHTML = '<div class="skeleton"></div>';
+    if (els.certsEmpty) els.certsEmpty.hidden = true;
+    if (!url) {
+      state.certificates = [];
+      setCertsBanner("");
+      renderCertificates();
+      return Promise.resolve();
+    }
+    var certUrl = withQuery(url, { type: "certificates" });
+    return fetch(certUrl, { method: "GET", credentials: "omit" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("bad status");
+        return r.json();
+      })
+      .then(applyBackendCertificates)
+      .catch(function () {
+        return jsonp(certUrl).then(applyBackendCertificates);
+      })
+      .catch(function () {
+        state.certificates = [];
+        setCertsBanner("Не удалось загрузить сертификаты. Попробуйте открыть вкладку ещё раз чуть позже.", true);
+        renderCertificates();
+      });
+  }
+
+  function applyBackendCertificates(payload) {
+    var data = parseResponse(payload) || {};
+    if (data.ok === false) throw new Error(data.error || "fail");
+    state.certificates = normalizeCertificates(data.certificates || []);
+    setCertsBanner("");
+    renderCertificates();
+  }
+
+  function updateOwnerUi() {
+    var owner = isOwner();
+    var hasBackend = !!backendUrl();
+    if (els.addCertBtn) {
+      els.addCertBtn.hidden = !owner;
+    }
+    if (els.certsBackendHint) {
+      els.certsBackendHint.hidden = !(owner && !hasBackend);
+    }
+    if (els.certsEmptyCta) {
+      els.certsEmptyCta.hidden = !(owner && hasBackend);
+    }
+    if (owner && !hasBackend && els.certFormSection) {
+      hideCertForm();
+    }
+    if (!owner && els.certFormSection) {
+      hideCertForm();
+    }
+  }
+
+  function pdfPlaceholderHtml() {
+    return (
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M7 3.5h7.2L18.5 8v11.5A1.5 1.5 0 0 1 17 21H7a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 7 3.5Z" stroke="currentColor" stroke-width="1.6"/>' +
+      '<path d="M14.2 3.6V8h4.2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M8.5 12.5h7M8.5 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>' +
+      "</svg><span>PDF</span>"
+    );
+  }
+
+  function renderCertificates() {
+    updateOwnerUi();
+    var list = state.certificates;
+    var owner = isOwner();
+    if (!list.length) {
+      els.certsGrid.innerHTML = "";
+      if (els.certsEmpty) els.certsEmpty.hidden = false;
+      return;
+    }
+    if (els.certsEmpty) els.certsEmpty.hidden = true;
+    els.certsGrid.innerHTML = list
+      .map(function (c, index) {
+        var meta = [c.issuer, c.year].filter(Boolean).map(escapeHtml).join(" · ");
+        var thumb;
+        if (c.isPdf) {
+          thumb =
+            '<button type="button" class="cert-thumb-pdf" data-open-link="' +
+            escapeHtml(c.imageUrl || c.link || "") +
+            '">' +
+            pdfPlaceholderHtml() +
+            "</button>";
+        } else {
+          thumb =
+            '<img class="cert-thumb" src="' +
+            escapeHtml(c.imageUrl) +
+            '" alt="' +
+            escapeHtml(c.title) +
+            '" data-full="' +
+            escapeHtml(c.imageUrl) +
+            '">';
+        }
+        var desc = c.description
+          ? '<p class="cert-desc">' + escapeHtml(c.description) + "</p>"
+          : "";
+        var link = c.link
+          ? '<a class="cert-link" href="' +
+            escapeHtml(c.link) +
+            '" target="_blank" rel="noopener noreferrer">Открыть ссылку</a>'
+          : "";
+        var del = owner
+          ? '<button type="button" class="cert-delete" data-delete-id="' +
+            escapeHtml(c.id) +
+            '" data-delete-title="' +
+            escapeHtml(c.title) +
+            '">Удалить</button>'
+          : "";
+        return (
+          '<article class="cert-card" style="animation-delay:' +
+          index * 40 +
+          'ms">' +
+          thumb +
+          '<div class="cert-body">' +
+          '<div class="cert-title">' +
+          escapeHtml(c.title) +
+          "</div>" +
+          (meta ? '<div class="cert-meta">' + meta + "</div>" : "") +
+          desc +
+          link +
+          del +
+          "</div></article>"
+        );
+      })
+      .join("");
+  }
+
+  function setTab(next, options) {
+    options = options || {};
+    var tab = next === "certificates" ? "certificates" : "reviews";
+    state.tab = tab;
+    document.querySelectorAll(".main-tab").forEach(function (btn) {
+      var active = btn.getAttribute("data-tab") === tab;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if (els.panelReviews) els.panelReviews.hidden = tab !== "reviews";
+    if (els.panelCertificates) els.panelCertificates.hidden = tab !== "certificates";
+    if (!options.skipHash) {
+      var hash = tab === "certificates" ? "#certificates" : "#reviews";
+      if (location.hash !== hash) {
+        if (history.replaceState) history.replaceState(null, "", hash);
+        else location.hash = hash;
+      }
+    }
+    if (tab === "reviews") {
+      if (els.statusBanner && els.statusBanner.textContent) els.statusBanner.hidden = false;
+    } else {
+      if (els.statusBanner) els.statusBanner.hidden = true;
+    }
+    updateMainButton();
+    if (!options.silent) haptic("light");
+  }
+
+  function tabFromHash() {
+    var hash = (location.hash || "").replace(/^#/, "");
+    return hash === "certificates" ? "certificates" : "reviews";
+  }
+
+  function openLightbox(src, alt) {
+    if (!els.lightbox || !els.lightboxImage || !src) return;
+    els.lightboxImage.src = src;
+    els.lightboxImage.alt = alt || "";
+    els.lightbox.hidden = false;
+    document.body.classList.add("lightbox-open");
+  }
+
+  function closeLightbox() {
+    if (!els.lightbox) return;
+    els.lightbox.hidden = true;
+    if (els.lightboxImage) els.lightboxImage.src = "";
+    document.body.classList.remove("lightbox-open");
+  }
+
+  function postJson(payload) {
     var url = backendUrl();
     var body = JSON.stringify(payload);
     return fetch(url, {
@@ -474,7 +767,7 @@
       });
     }).then(function (data) {
       if (data && data.ok === false) {
-        var err = new Error(data.error || "Не удалось отправить отзыв");
+        var err = new Error(data.error || "Не удалось выполнить запрос");
         err.server = true;
         throw err;
       }
@@ -492,6 +785,10 @@
     });
   }
 
+  function postReview(payload) {
+    return postJson(payload);
+  }
+
   function resetFormFields() {
     els.reviewForm.reset();
     if (state.user) {
@@ -504,6 +801,7 @@
 
   function submitForm(event) {
     if (event) event.preventDefault();
+    if (state.tab !== "reviews") return;
     if (state.submitting) return;
     showFormMessage("", "");
     var payload = collectPayload();
@@ -563,6 +861,304 @@
     haptic("light");
   }
 
+  function currentYear() {
+    return new Date().getFullYear();
+  }
+
+  function showCertForm() {
+    if (!isOwner()) return;
+    if (!backendUrl()) {
+      updateOwnerUi();
+      if (els.certsBackendHint) {
+        els.certsBackendHint.hidden = false;
+        if (els.certsBackendHint.scrollIntoView) {
+          els.certsBackendHint.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+      return;
+    }
+    if (els.certFormSection) els.certFormSection.hidden = false;
+    if (!els.certYearInput.value) els.certYearInput.value = String(currentYear());
+    showCertFormMessage("", "");
+    if (els.certFormSection && els.certFormSection.scrollIntoView) {
+      els.certFormSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (els.certTitleInput) {
+      try {
+        els.certTitleInput.focus({ preventScroll: true });
+      } catch (e) {
+        els.certTitleInput.focus();
+      }
+    }
+    haptic("light");
+  }
+
+  function hideCertForm() {
+    if (els.certFormSection) els.certFormSection.hidden = true;
+    resetCertForm();
+  }
+
+  function resetCertForm() {
+    if (!els.certForm) return;
+    els.certForm.reset();
+    if (els.certYearInput) els.certYearInput.value = String(currentYear());
+    state.certPreparedFile = null;
+    if (els.certFileLabel) els.certFileLabel.textContent = "Выберите фото или PDF";
+    if (els.certPreview) els.certPreview.hidden = true;
+    if (els.certPreviewImg) {
+      els.certPreviewImg.removeAttribute("src");
+      els.certPreviewImg.hidden = true;
+    }
+    if (els.certPreviewPdf) {
+      els.certPreviewPdf.hidden = true;
+      els.certPreviewPdf.textContent = "";
+    }
+    updateCertDescCount();
+  }
+
+  function isPdfFile(file) {
+    if (!file) return false;
+    return file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result || ""));
+      };
+      reader.onerror = function () {
+        reject(new Error("Не удалось прочитать файл"));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImage(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        resolve(img);
+      };
+      img.onerror = function () {
+        reject(new Error("Не удалось открыть изображение"));
+      };
+      img.src = url;
+    });
+  }
+
+  function canvasToJpeg(canvas, quality) {
+    return canvas.toDataURL("image/jpeg", quality);
+  }
+
+  function prepareImageFile(file) {
+    var objectUrl = URL.createObjectURL(file);
+    return loadImage(objectUrl)
+      .then(function (img) {
+        var width = img.naturalWidth || img.width;
+        var height = img.naturalHeight || img.height;
+        if (!width || !height) throw new Error("Не удалось открыть изображение");
+        var scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(width, height));
+        var w = Math.max(1, Math.round(width * scale));
+        var h = Math.max(1, Math.round(height * scale));
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(objectUrl);
+        var dataUrl = canvasToJpeg(canvas, JPEG_QUALITY);
+        var base64 = dataUrl.split(",")[1] || "";
+        var approxBytes = Math.ceil((base64.length * 3) / 4);
+        if (approxBytes > MAX_FILE_BYTES) {
+          throw new Error("Файл слишком большой. Выберите другое фото.");
+        }
+        var name = String(file.name || "certificate").replace(/\.[a-z0-9]+$/i, "") + ".jpg";
+        return {
+          base64: base64,
+          mime: "image/jpeg",
+          name: name,
+          isPdf: false,
+          previewUrl: dataUrl
+        };
+      })
+      .catch(function (err) {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch (e) {}
+        throw err;
+      });
+  }
+
+  function preparePdfFile(file) {
+    if (file.size > MAX_FILE_BYTES) {
+      return Promise.reject(new Error("PDF больше 5 МБ. Выберите файл поменьше."));
+    }
+    return readFileAsDataUrl(file).then(function (dataUrl) {
+      var base64 = String(dataUrl).split(",")[1] || "";
+      return {
+        base64: base64,
+        mime: "application/pdf",
+        name: file.name || "certificate.pdf",
+        isPdf: true,
+        previewUrl: ""
+      };
+    });
+  }
+
+  function handleCertFileChange() {
+    var file = els.certFileInput && els.certFileInput.files && els.certFileInput.files[0];
+    state.certPreparedFile = null;
+    if (els.certPreview) els.certPreview.hidden = true;
+    if (!file) {
+      if (els.certFileLabel) els.certFileLabel.textContent = "Выберите фото или PDF";
+      return;
+    }
+    if (els.certFileLabel) els.certFileLabel.textContent = file.name;
+    showCertFormMessage("", "");
+    var work = isPdfFile(file) ? preparePdfFile(file) : prepareImageFile(file);
+    work
+      .then(function (prepared) {
+        state.certPreparedFile = prepared;
+        if (els.certPreview) els.certPreview.hidden = false;
+        if (prepared.isPdf) {
+          if (els.certPreviewImg) {
+            els.certPreviewImg.hidden = true;
+            els.certPreviewImg.removeAttribute("src");
+          }
+          if (els.certPreviewPdf) {
+            els.certPreviewPdf.hidden = false;
+            els.certPreviewPdf.textContent = "PDF · " + prepared.name;
+          }
+        } else {
+          if (els.certPreviewPdf) els.certPreviewPdf.hidden = true;
+          if (els.certPreviewImg) {
+            els.certPreviewImg.hidden = false;
+            els.certPreviewImg.src = prepared.previewUrl;
+          }
+        }
+      })
+      .catch(function (err) {
+        if (els.certFileInput) els.certFileInput.value = "";
+        if (els.certFileLabel) els.certFileLabel.textContent = "Выберите фото или PDF";
+        showCertFormMessage("", (err && err.message) || "Не удалось обработать файл.");
+        haptic("error");
+      });
+  }
+
+  function validateCertificate() {
+    var title = (els.certTitleInput.value || "").trim();
+    var issuer = (els.certIssuerInput.value || "").trim();
+    var year = parseInt(els.certYearInput.value, 10);
+    var description = (els.certDescInput.value || "").trim();
+    var link = (els.certLinkInput.value || "").trim();
+    var thisYear = currentYear();
+    if (!title || title.length < 2) return "Укажите название сертификата.";
+    if (title.length > 120) return "Название слишком длинное.";
+    if (!issuer || issuer.length < 2) return "Укажите, кто выдал сертификат.";
+    if (issuer.length > 120) return "Название организации слишком длинное.";
+    if (!(year >= 1980 && year <= thisYear + 1)) return "Укажите корректный год.";
+    if (description.length > MAX_CERT_DESC) return "Описание длиннее " + MAX_CERT_DESC + " символов.";
+    if (link && !/^https?:\/\/[^\s]+$/i.test(link)) {
+      return "Ссылка должна начинаться с http:// или https://.";
+    }
+    if (!state.certPreparedFile || !state.certPreparedFile.base64) {
+      return "Приложите фото или PDF сертификата.";
+    }
+    return "";
+  }
+
+  function submitCertificate(event) {
+    if (event) event.preventDefault();
+    if (!isOwner()) {
+      showCertFormMessage("", "Добавлять сертификаты можете только вы, из своего Telegram.");
+      return;
+    }
+    if (!backendUrl()) {
+      showCertFormMessage("", "Сначала подключите Google Apps Script — инструкция в README.");
+      updateOwnerUi();
+      return;
+    }
+    if (state.certSubmitting) return;
+    showCertFormMessage("", "");
+    var error = validateCertificate();
+    if (error) {
+      showCertFormMessage("", error);
+      haptic("error");
+      return;
+    }
+    var payload = {
+      action: "addCertificate",
+      initData: initDataString(),
+      title: (els.certTitleInput.value || "").trim(),
+      issuer: (els.certIssuerInput.value || "").trim(),
+      year: parseInt(els.certYearInput.value, 10),
+      description: (els.certDescInput.value || "").trim(),
+      link: (els.certLinkInput.value || "").trim(),
+      imageBase64: state.certPreparedFile.base64,
+      imageMime: state.certPreparedFile.mime,
+      imageName: state.certPreparedFile.name
+    };
+    if (!payload.initData) {
+      showCertFormMessage("", "Откройте Mini App из Telegram, чтобы подтвердить, что это вы.");
+      haptic("error");
+      return;
+    }
+    state.certSubmitting = true;
+    els.certSubmitBtn.disabled = true;
+    postJson(payload)
+      .then(function (data) {
+        resetCertForm();
+        showCertFormMessage("Сертификат добавлен.", "");
+        haptic("success");
+        if (data && data.certificate) {
+          var next = normalizeCertificates([data.certificate].concat(state.certificates));
+          state.certificates = next;
+          renderCertificates();
+        } else {
+          return loadCertificates();
+        }
+      })
+      .catch(function (err) {
+        showCertFormMessage("", (err && err.message) || "Не удалось сохранить сертификат. Попробуйте ещё раз.");
+        haptic("error");
+      })
+      .then(function () {
+        state.certSubmitting = false;
+        if (els.certSubmitBtn) els.certSubmitBtn.disabled = false;
+      });
+  }
+
+  function deleteCertificate(id, title) {
+    if (!isOwner()) return;
+    if (!backendUrl()) return;
+    var ok = window.confirm('Удалить сертификат «' + (title || "") + '»?');
+    if (!ok) return;
+    var payload = {
+      action: "deleteCertificate",
+      initData: initDataString(),
+      id: id
+    };
+    if (!payload.initData) {
+      setCertsBanner("Откройте Mini App из Telegram, чтобы удалить сертификат.", true);
+      return;
+    }
+    postJson(payload)
+      .then(function () {
+        state.certificates = state.certificates.filter(function (c) {
+          return c.id !== id;
+        });
+        renderCertificates();
+        haptic("success");
+      })
+      .catch(function (err) {
+        setCertsBanner((err && err.message) || "Не удалось удалить сертификат.", true);
+        haptic("error");
+      });
+  }
+
   function cacheElements() {
     [
       "ownerAvatar",
@@ -590,7 +1186,37 @@
       "formOk",
       "submitBtn",
       "footerNote",
-      "contactLink"
+      "contactLink",
+      "tabReviews",
+      "tabCertificates",
+      "panelReviews",
+      "panelCertificates",
+      "addCertBtn",
+      "certsBackendHint",
+      "certsBanner",
+      "certsGrid",
+      "certsEmpty",
+      "certsEmptyCta",
+      "certFormSection",
+      "certForm",
+      "certTitleInput",
+      "certIssuerInput",
+      "certYearInput",
+      "certDescInput",
+      "certDescCount",
+      "certLinkInput",
+      "certFileInput",
+      "certFileLabel",
+      "certPreview",
+      "certPreviewImg",
+      "certPreviewPdf",
+      "certFormError",
+      "certFormOk",
+      "certSubmitBtn",
+      "certCancelBtn",
+      "lightbox",
+      "lightboxClose",
+      "lightboxImage"
     ].forEach(function (id) {
       els[id] = $(id);
     });
@@ -600,6 +1226,11 @@
     document.querySelectorAll(".chip").forEach(function (btn) {
       btn.addEventListener("click", function () {
         setFilter(btn.getAttribute("data-filter"));
+      });
+    });
+    document.querySelectorAll(".main-tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setTab(btn.getAttribute("data-tab"));
       });
     });
     document.querySelectorAll("#starPicker button").forEach(function (btn) {
@@ -618,6 +1249,64 @@
         openTelegramLink(els.contactLink.href, event);
       });
     }
+    if (els.addCertBtn) {
+      els.addCertBtn.addEventListener("click", showCertForm);
+    }
+    if (els.certsEmptyCta) {
+      els.certsEmptyCta.addEventListener("click", showCertForm);
+    }
+    if (els.certForm) {
+      els.certForm.addEventListener("submit", submitCertificate);
+    }
+    if (els.certCancelBtn) {
+      els.certCancelBtn.addEventListener("click", hideCertForm);
+    }
+    if (els.certFileInput) {
+      els.certFileInput.addEventListener("change", handleCertFileChange);
+    }
+    if (els.certDescInput) {
+      els.certDescInput.addEventListener("input", updateCertDescCount);
+    }
+    if (els.certsGrid) {
+      els.certsGrid.addEventListener("click", function (event) {
+        var thumb = event.target.closest && event.target.closest(".cert-thumb");
+        if (thumb) {
+          openLightbox(thumb.getAttribute("data-full") || thumb.src, thumb.getAttribute("alt"));
+          return;
+        }
+        var pdfBtn = event.target.closest && event.target.closest("[data-open-link]");
+        if (pdfBtn) {
+          openExternalLink(pdfBtn.getAttribute("data-open-link"), event);
+          return;
+        }
+        var link = event.target.closest && event.target.closest(".cert-link");
+        if (link) {
+          openExternalLink(link.href, event);
+          return;
+        }
+        var del = event.target.closest && event.target.closest("[data-delete-id]");
+        if (del) {
+          deleteCertificate(del.getAttribute("data-delete-id"), del.getAttribute("data-delete-title"));
+        }
+      });
+    }
+    if (els.lightboxClose) {
+      els.lightboxClose.addEventListener("click", function (event) {
+        event.stopPropagation();
+        closeLightbox();
+      });
+    }
+    if (els.lightbox) {
+      els.lightbox.addEventListener("click", function (event) {
+        if (event.target === els.lightbox) closeLightbox();
+      });
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeLightbox();
+    });
+    window.addEventListener("hashchange", function () {
+      setTab(tabFromHash(), { skipHash: true, silent: true });
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -625,8 +1314,12 @@
     renderHero();
     setStars(5);
     updateCharCount();
+    if (els.certYearInput) els.certYearInput.value = String(currentYear());
+    updateCertDescCount();
     bindEvents();
     initTelegram();
+    setTab(tabFromHash(), { skipHash: true, silent: true });
     loadReviews();
+    loadCertificates();
   });
 })();

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#0b0f17">
-  <title>Отзывы — ИИ-автоматизация и проектирование</title>
+  <title>Отзывы и сертификаты — ИИ-автоматизация и проектирование</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
@@ -27,7 +27,7 @@
       <p class="lead">
         Студент 1 курса СПбГАСУ, направление «Строительство уникальных зданий и сооружений» (подземные сооружения).
         Проектирую в Renga, nanoCAD и Revit, а также учусь создавать ИИ-системы и автоматизировать бизнес с помощью ИИ.
-        Здесь можно оставить отзыв о совместной работе.
+        Здесь можно оставить отзыв о совместной работе и посмотреть сертификаты.
       </p>
       <div class="services" role="list">
         <article class="service-card" role="listitem">
@@ -58,91 +58,168 @@
       </div>
     </header>
 
-    <section class="rating-panel" id="ratingPanel" aria-label="Сводный рейтинг">
-      <div class="rating-main">
-        <div class="rating-score" id="avgScore">—</div>
-        <div>
-          <div class="stars-static" id="avgStars" hidden></div>
-          <p class="rating-count" id="ratingCount">Пока нет оценок</p>
-        </div>
-      </div>
-      <div class="rating-bars" id="ratingBars" hidden></div>
-    </section>
+    <nav class="main-tabs" role="tablist" aria-label="Разделы">
+      <button type="button" class="main-tab is-active" id="tabReviews" data-tab="reviews" role="tab" aria-selected="true" aria-controls="panelReviews">Отзывы</button>
+      <button type="button" class="main-tab" id="tabCertificates" data-tab="certificates" role="tab" aria-selected="false" aria-controls="panelCertificates">Сертификаты</button>
+    </nav>
 
     <div class="banner" id="statusBanner" hidden></div>
 
-    <section class="reviews-section" aria-labelledby="reviewsTitle">
-      <div class="section-head">
-        <h2 id="reviewsTitle">Отзывы</h2>
-        <div class="filters" role="tablist" aria-label="Фильтр по направлению">
-          <button type="button" class="chip is-active" data-filter="all" role="tab" aria-selected="true">Все</button>
-          <button type="button" class="chip" data-filter="support" role="tab" aria-selected="false">ИИ-техподдержка</button>
-          <button type="button" class="chip" data-filter="design" role="tab" aria-selected="false">Проектирование</button>
-        </div>
-      </div>
-      <div class="review-list" id="reviewList"></div>
-      <div class="empty-state" id="emptyState" hidden>
-        <div class="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M5 16.5V6.8A1.8 1.8 0 0 1 6.8 5h10.4A1.8 1.8 0 0 1 19 6.8v9.7l-3.2-1.7H6.8A1.8 1.8 0 0 0 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 9.2h7M8.5 12h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </div>
-        <p class="empty-title" id="emptyTitle">Отзывов пока нет — станьте первым!</p>
-        <p class="empty-text" id="emptyText">Расскажите, как прошла совместная работа.</p>
-        <button type="button" class="empty-cta" id="emptyCta">Оставить отзыв</button>
-      </div>
-    </section>
-
-    <section class="form-section" id="reviewFormSection" aria-labelledby="formTitle">
-      <h2 id="formTitle">Оставить отзыв</h2>
-      <p class="form-intro" id="formIntro">Коротко расскажите, как прошла работа.</p>
-      <form id="reviewForm" novalidate>
-        <label class="field">
-          <span>Ваше имя</span>
-          <input type="text" id="nameInput" name="name" maxlength="80" autocomplete="name" required placeholder="Как к вам обращаться">
-        </label>
-
-        <fieldset class="field">
-          <legend>Оценка</legend>
-          <div class="star-picker" id="starPicker">
-            <button type="button" data-star="1" aria-label="1 звезда">★</button>
-            <button type="button" data-star="2" aria-label="2 звезды">★</button>
-            <button type="button" data-star="3" aria-label="3 звезды">★</button>
-            <button type="button" data-star="4" aria-label="4 звезды">★</button>
-            <button type="button" data-star="5" aria-label="5 звёзд">★</button>
+    <div id="panelReviews" class="tab-panel" role="tabpanel" aria-labelledby="tabReviews">
+      <section class="rating-panel" id="ratingPanel" aria-label="Сводный рейтинг">
+        <div class="rating-main">
+          <div class="rating-score" id="avgScore">—</div>
+          <div>
+            <div class="stars-static" id="avgStars" hidden></div>
+            <p class="rating-count" id="ratingCount">Пока нет оценок</p>
           </div>
-          <input type="hidden" id="starsInput" name="stars" value="5">
-        </fieldset>
+        </div>
+        <div class="rating-bars" id="ratingBars" hidden></div>
+      </section>
 
-        <fieldset class="field">
-          <legend>Направление</legend>
-          <div class="category-picker">
-            <label class="choice">
-              <input type="radio" name="category" value="support" checked>
-              <span>ИИ-автоматизация техподдержки</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="category" value="design">
-              <span>Проектирование</span>
-            </label>
+      <section class="reviews-section" aria-labelledby="reviewsTitle">
+        <div class="section-head">
+          <h2 id="reviewsTitle">Отзывы</h2>
+          <div class="filters" role="tablist" aria-label="Фильтр по направлению">
+            <button type="button" class="chip is-active" data-filter="all" role="tab" aria-selected="true">Все</button>
+            <button type="button" class="chip" data-filter="support" role="tab" aria-selected="false">ИИ-техподдержка</button>
+            <button type="button" class="chip" data-filter="design" role="tab" aria-selected="false">Проектирование</button>
           </div>
-        </fieldset>
+        </div>
+        <div class="review-list" id="reviewList"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 16.5V6.8A1.8 1.8 0 0 1 6.8 5h10.4A1.8 1.8 0 0 1 19 6.8v9.7l-3.2-1.7H6.8A1.8 1.8 0 0 0 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 9.2h7M8.5 12h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <p class="empty-title" id="emptyTitle">Отзывов пока нет — станьте первым!</p>
+          <p class="empty-text" id="emptyText">Расскажите, как прошла совместная работа.</p>
+          <button type="button" class="empty-cta" id="emptyCta">Оставить отзыв</button>
+        </div>
+      </section>
 
-        <label class="field">
-          <span>Отзыв</span>
-          <textarea id="textInput" name="text" rows="5" required placeholder="Что было сделано и какой получили результат?"></textarea>
-          <span class="char-count" id="charCount">0 / 1000</span>
-        </label>
+      <section class="form-section" id="reviewFormSection" aria-labelledby="formTitle">
+        <h2 id="formTitle">Оставить отзыв</h2>
+        <p class="form-intro" id="formIntro">Коротко расскажите, как прошла работа.</p>
+        <form id="reviewForm" novalidate>
+          <label class="field">
+            <span>Ваше имя</span>
+            <input type="text" id="nameInput" name="name" maxlength="80" autocomplete="name" required placeholder="Как к вам обращаться">
+          </label>
 
-        <p class="form-error" id="formError" hidden></p>
-        <p class="form-ok" id="formOk" hidden></p>
+          <fieldset class="field">
+            <legend>Оценка</legend>
+            <div class="star-picker" id="starPicker">
+              <button type="button" data-star="1" aria-label="1 звезда">★</button>
+              <button type="button" data-star="2" aria-label="2 звезды">★</button>
+              <button type="button" data-star="3" aria-label="3 звезды">★</button>
+              <button type="button" data-star="4" aria-label="4 звезды">★</button>
+              <button type="button" data-star="5" aria-label="5 звёзд">★</button>
+            </div>
+            <input type="hidden" id="starsInput" name="stars" value="5">
+          </fieldset>
 
-        <button type="submit" class="submit-btn" id="submitBtn">Отправить отзыв</button>
-      </form>
-    </section>
+          <fieldset class="field">
+            <legend>Направление</legend>
+            <div class="category-picker">
+              <label class="choice">
+                <input type="radio" name="category" value="support" checked>
+                <span>ИИ-автоматизация техподдержки</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="category" value="design">
+                <span>Проектирование</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="field">
+            <span>Отзыв</span>
+            <textarea id="textInput" name="text" rows="5" required placeholder="Что было сделано и какой получили результат?"></textarea>
+            <span class="char-count" id="charCount">0 / 1000</span>
+          </label>
+
+          <p class="form-error" id="formError" hidden></p>
+          <p class="form-ok" id="formOk" hidden></p>
+
+          <button type="submit" class="submit-btn" id="submitBtn">Отправить отзыв</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="panelCertificates" class="tab-panel" role="tabpanel" aria-labelledby="tabCertificates" hidden>
+      <section class="certs-section" aria-labelledby="certsTitle">
+        <div class="section-head certs-head">
+          <h2 id="certsTitle">Сертификаты и достижения</h2>
+          <button type="button" class="add-cert-btn" id="addCertBtn" hidden>Добавить</button>
+        </div>
+        <p class="certs-hint" id="certsBackendHint" hidden>Чтобы добавлять сертификаты, сначала подключите Google Apps Script — инструкция в README.</p>
+        <div class="banner" id="certsBanner" hidden></div>
+        <div class="certs-grid" id="certsGrid"></div>
+        <div class="empty-state" id="certsEmpty" hidden>
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7 3.5h10A1.5 1.5 0 0 1 18.5 5v14A1.5 1.5 0 0 1 17 20.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <p class="empty-title">Сертификаты скоро появятся</p>
+          <p class="empty-text" id="certsEmptyText">Здесь будут сертификаты и достижения.</p>
+          <button type="button" class="empty-cta" id="certsEmptyCta" hidden>Добавить сертификат</button>
+        </div>
+
+        <section class="cert-form-section" id="certFormSection" hidden aria-labelledby="certFormTitle">
+          <h2 id="certFormTitle">Новый сертификат</h2>
+          <p class="form-intro">Заполните данные и приложите фото или PDF. Карточка появится на витрине сразу.</p>
+          <form id="certForm" novalidate>
+            <label class="field">
+              <span>Название</span>
+              <input type="text" id="certTitleInput" name="title" maxlength="120" required placeholder="Например, курс по Revit">
+            </label>
+            <label class="field">
+              <span>Кто выдал</span>
+              <input type="text" id="certIssuerInput" name="issuer" maxlength="120" required placeholder="Организация или площадка">
+            </label>
+            <label class="field">
+              <span>Год</span>
+              <input type="number" id="certYearInput" name="year" min="1980" max="2100" step="1" required>
+            </label>
+            <label class="field">
+              <span>Короткое описание <em>(необязательно)</em></span>
+              <textarea id="certDescInput" name="description" rows="3" maxlength="500" placeholder="Пару предложений, о чём сертификат"></textarea>
+              <span class="char-count" id="certDescCount">0 / 500</span>
+            </label>
+            <label class="field">
+              <span>Ссылка <em>(необязательно)</em></span>
+              <input type="url" id="certLinkInput" name="link" maxlength="500" placeholder="https://">
+            </label>
+            <label class="field">
+              <span>Файл</span>
+              <label class="file-picker">
+                <input type="file" id="certFileInput" accept="image/*,application/pdf,.pdf">
+                <span id="certFileLabel">Выберите фото или PDF</span>
+              </label>
+              <div class="cert-preview" id="certPreview" hidden>
+                <img id="certPreviewImg" alt="Предпросмотр">
+                <div class="cert-preview-pdf" id="certPreviewPdf" hidden></div>
+              </div>
+            </label>
+            <p class="form-error" id="certFormError" hidden></p>
+            <p class="form-ok" id="certFormOk" hidden></p>
+            <div class="cert-form-actions">
+              <button type="submit" class="submit-btn" id="certSubmitBtn">Сохранить</button>
+              <button type="button" class="cancel-btn" id="certCancelBtn">Отмена</button>
+            </div>
+          </form>
+        </section>
+      </section>
+    </div>
 
     <footer class="footer">
       <p id="footerNote">Бесплатная витрина отзывов · Telegram Mini App</p>
       <a id="contactLink" class="contact-link" hidden href="#" rel="noopener">Написать в Telegram</a>
     </footer>
+  </div>
+
+  <div class="lightbox" id="lightbox" hidden>
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Закрыть">×</button>
+    <img id="lightboxImage" alt="">
   </div>
 
   <script src="config.js"></script>

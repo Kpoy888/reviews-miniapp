@@ -16,6 +16,12 @@ window.MINIAPP_CONFIG = {
   // Необязательно: @username без ссылки, чтобы клиент мог написать вам
   TELEGRAM_USERNAME: "Faringeits0",
 
+  // Ваш числовой Telegram ID (строкой). Нужен только чтобы на сайте
+  // показать кнопки «Добавить» / «Удалить» вам самому. Узнать ID можно
+  // у @userinfobot в Telegram. Настоящая проверка прав — на сервере,
+  // в свойствах скрипта OWNER_TELEGRAM_ID, а не по этому полю.
+  OWNER_TELEGRAM_ID: "",
+
   // Антиспам на клиенте (сервер проверяет отдельно)
   MIN_REVIEW_LENGTH: 10,
   MAX_REVIEW_LENGTH: 1000
