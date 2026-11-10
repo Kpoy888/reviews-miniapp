@@ -11,7 +11,7 @@ window.MINIAPP_CONFIG = {
   OWNER_NAME: "Пащенко Владимир Владимирович",
 
   // Короткий слоган под именем
-  OWNER_TAGLINE: "ИИ-автоматизация техподдержки и проектирование в Renga",
+  OWNER_TAGLINE: "Проектирование в Renga, nanoCAD, Revit и ИИ-автоматизация бизнеса",
 
   // Необязательно: @username без ссылки, чтобы клиент мог написать вам
   TELEGRAM_USERNAME: "Faringeits0",
