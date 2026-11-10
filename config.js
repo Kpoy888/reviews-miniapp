@@ -20,7 +20,7 @@ window.MINIAPP_CONFIG = {
   // показать кнопки «Добавить» / «Удалить» вам самому. Узнать ID можно
   // у @userinfobot в Telegram. Настоящая проверка прав — на сервере,
   // в свойствах скрипта OWNER_TELEGRAM_ID, а не по этому полю.
-  OWNER_TELEGRAM_ID: "",
+  OWNER_TELEGRAM_ID: "765253799",
 
   // Антиспам на клиенте (сервер проверяет отдельно)
   MIN_REVIEW_LENGTH: 10,
