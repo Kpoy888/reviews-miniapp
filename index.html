@@ -150,7 +150,13 @@
       <section class="certs-section" aria-labelledby="certsTitle">
         <div class="section-head certs-head">
           <h2 id="certsTitle">Сертификаты и достижения</h2>
-          <button type="button" class="add-cert-btn" id="addCertBtn" hidden>Добавить</button>
+          <div class="certs-actions">
+            <button type="button" class="owner-lock-btn" id="ownerLockBtn" aria-label="Вход для владельца" title="Вход для владельца">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 11h10v9H7v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 14.5v2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="add-cert-btn" id="addCertBtn" hidden>Добавить</button>
+            <button type="button" class="owner-logout-btn" id="certsLogoutBtn" hidden>Выйти</button>
+          </div>
         </div>
         <p class="certs-hint" id="certsBackendHint" hidden>Чтобы добавлять сертификаты, сначала подключите Google Apps Script — инструкция в README.</p>
         <div class="banner" id="certsBanner" hidden></div>
@@ -212,14 +218,33 @@
     </div>
 
     <footer class="footer">
-      <p id="footerNote">Бесплатная витрина отзывов · Telegram Mini App</p>
+      <p id="footerNote">Бесплатная витрина отзывов</p>
       <a id="contactLink" class="contact-link" hidden href="#" rel="noopener">Написать в Telegram</a>
+      <button type="button" class="owner-login-link" id="ownerLoginLink">Вход для владельца</button>
+      <button type="button" class="owner-logout-link" id="ownerLogoutLink" hidden>Выйти</button>
     </footer>
   </div>
 
   <div class="lightbox" id="lightbox" hidden>
     <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Закрыть">×</button>
     <img id="lightboxImage" alt="">
+  </div>
+
+  <div class="login-modal" id="loginModal" hidden>
+    <div class="login-dialog" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <button type="button" class="login-close" id="loginClose" aria-label="Закрыть">×</button>
+      <h2 id="loginTitle">Вход для владельца</h2>
+      <p class="form-intro" id="loginIntro">Введите пароль, чтобы добавлять и удалять сертификаты.</p>
+      <p class="certs-hint" id="loginBackendHint" hidden>Сначала подключите Google Apps Script — без бэкенда вход не сработает. Инструкция в README.</p>
+      <form id="loginForm" novalidate>
+        <label class="field">
+          <span>Пароль</span>
+          <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="Пароль владельца">
+        </label>
+        <p class="form-error" id="loginError" hidden></p>
+        <button type="submit" class="submit-btn" id="loginSubmitBtn">Войти</button>
+      </form>
+    </div>
   </div>
 
   <script src="config.js"></script>

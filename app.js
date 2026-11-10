@@ -9,6 +9,7 @@
   var JPEG_QUALITY = 0.85;
   var MAX_CERT_DESC = 500;
   var MAX_FILE_BYTES = 5 * 1024 * 1024;
+  var OWNER_TOKEN_KEY = "miniapp_owner_token";
 
   var config = window.MINIAPP_CONFIG || {};
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -93,20 +94,35 @@
     return handle ? "https://t.me/" + encodeURIComponent(handle) : "";
   }
 
-  function ownerTelegramId() {
-    return String(config.OWNER_TELEGRAM_ID || "").trim();
+  function getOwnerToken() {
+    try {
+      return String(sessionStorage.getItem(OWNER_TOKEN_KEY) || "");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setOwnerToken(token) {
+    try {
+      if (token) sessionStorage.setItem(OWNER_TOKEN_KEY, token);
+      else sessionStorage.removeItem(OWNER_TOKEN_KEY);
+    } catch (e) {}
   }
 
   function isOwner() {
-    var expected = ownerTelegramId();
-    if (!expected) return false;
-    var user = state.user || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user);
-    if (!user || user.id == null || user.id === "") return false;
-    return String(user.id) === expected;
+    return !!getOwnerToken();
   }
 
-  function initDataString() {
-    return tg && tg.initData ? String(tg.initData) : "";
+  function isSessionError(message) {
+    var text = String(message || "");
+    return /сессия истекла|авторизац/i.test(text);
+  }
+
+  function handleExpiredSession(message) {
+    setOwnerToken("");
+    updateOwnerUi();
+    renderCertificates();
+    openLoginModal(message || "Сессия истекла. Войдите снова.");
   }
 
   function openTelegramLink(url, event) {
@@ -444,8 +460,7 @@
       category: categoryEl ? categoryEl.value : "support",
       text: (els.textInput.value || "").trim(),
       telegramId: state.user && state.user.id ? String(state.user.id) : "",
-      telegramUsername: state.user && state.user.username ? String(state.user.username) : "",
-      initData: initDataString()
+      telegramUsername: state.user && state.user.username ? String(state.user.username) : ""
     };
   }
 
@@ -614,8 +629,21 @@
   function updateOwnerUi() {
     var owner = isOwner();
     var hasBackend = !!backendUrl();
+    document.body.classList.toggle("is-owner", owner);
     if (els.addCertBtn) {
       els.addCertBtn.hidden = !owner;
+    }
+    if (els.ownerLockBtn) {
+      els.ownerLockBtn.hidden = owner;
+    }
+    if (els.certsLogoutBtn) {
+      els.certsLogoutBtn.hidden = !owner;
+    }
+    if (els.ownerLoginLink) {
+      els.ownerLoginLink.hidden = owner;
+    }
+    if (els.ownerLogoutLink) {
+      els.ownerLogoutLink.hidden = !owner;
     }
     if (els.certsBackendHint) {
       els.certsBackendHint.hidden = !(owner && !hasBackend);
@@ -623,11 +651,13 @@
     if (els.certsEmptyCta) {
       els.certsEmptyCta.hidden = !(owner && hasBackend);
     }
-    if (owner && !hasBackend && els.certFormSection) {
-      hideCertForm();
+    if (els.certsEmptyText) {
+      els.certsEmptyText.textContent = owner
+        ? "Добавьте первый сертификат — кнопка «Добавить» сверху."
+        : "Здесь будут сертификаты и достижения.";
     }
-    if (!owner && els.certFormSection) {
-      hideCertForm();
+    if ((owner && !hasBackend) || !owner) {
+      if (els.certFormSection) hideCertForm();
     }
   }
 
@@ -753,7 +783,8 @@
     document.body.classList.remove("lightbox-open");
   }
 
-  function postJson(payload) {
+  function postJson(payload, options) {
+    options = options || {};
     var url = backendUrl();
     var body = JSON.stringify(payload);
     return fetch(url, {
@@ -762,7 +793,14 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: body
     }).then(function (r) {
-      return r.json().catch(function () {
+      return r.json().then(function (data) {
+        return data;
+      }, function () {
+        if (options.requireJson) {
+          var parseErr = new Error("Некорректный ответ сервера");
+          parseErr.server = true;
+          throw parseErr;
+        }
         return { ok: true, assumed: true };
       });
     }).then(function (data) {
@@ -774,6 +812,9 @@
       return data || { ok: true };
     }).catch(function (err) {
       if (err && err.server) throw err;
+      if (options.requireJson) {
+        throw new Error((err && err.message) || "Не удалось связаться с сервером. Попробуйте ещё раз.");
+      }
       return fetch(url, {
         method: "POST",
         mode: "no-cors",
@@ -1073,7 +1114,8 @@
   function submitCertificate(event) {
     if (event) event.preventDefault();
     if (!isOwner()) {
-      showCertFormMessage("", "Добавлять сертификаты можете только вы, из своего Telegram.");
+      showCertFormMessage("", "Сначала войдите как владелец.");
+      openLoginModal();
       return;
     }
     if (!backendUrl()) {
@@ -1091,7 +1133,7 @@
     }
     var payload = {
       action: "addCertificate",
-      initData: initDataString(),
+      token: getOwnerToken(),
       title: (els.certTitleInput.value || "").trim(),
       issuer: (els.certIssuerInput.value || "").trim(),
       year: parseInt(els.certYearInput.value, 10),
@@ -1101,14 +1143,15 @@
       imageMime: state.certPreparedFile.mime,
       imageName: state.certPreparedFile.name
     };
-    if (!payload.initData) {
-      showCertFormMessage("", "Откройте Mini App из Telegram, чтобы подтвердить, что это вы.");
+    if (!payload.token) {
+      showCertFormMessage("", "Сначала войдите как владелец.");
+      openLoginModal();
       haptic("error");
       return;
     }
     state.certSubmitting = true;
     els.certSubmitBtn.disabled = true;
-    postJson(payload)
+    postJson(payload, { requireJson: true })
       .then(function (data) {
         resetCertForm();
         showCertFormMessage("Сертификат добавлен.", "");
@@ -1122,7 +1165,12 @@
         }
       })
       .catch(function (err) {
-        showCertFormMessage("", (err && err.message) || "Не удалось сохранить сертификат. Попробуйте ещё раз.");
+        var message = (err && err.message) || "Не удалось сохранить сертификат. Попробуйте ещё раз.";
+        if (isSessionError(message)) {
+          handleExpiredSession(message);
+        } else {
+          showCertFormMessage("", message);
+        }
         haptic("error");
       })
       .then(function () {
@@ -1138,14 +1186,14 @@
     if (!ok) return;
     var payload = {
       action: "deleteCertificate",
-      initData: initDataString(),
+      token: getOwnerToken(),
       id: id
     };
-    if (!payload.initData) {
-      setCertsBanner("Откройте Mini App из Telegram, чтобы удалить сертификат.", true);
+    if (!payload.token) {
+      openLoginModal();
       return;
     }
-    postJson(payload)
+    postJson(payload, { requireJson: true })
       .then(function () {
         state.certificates = state.certificates.filter(function (c) {
           return c.id !== id;
@@ -1154,9 +1202,97 @@
         haptic("success");
       })
       .catch(function (err) {
-        setCertsBanner((err && err.message) || "Не удалось удалить сертификат.", true);
+        var message = (err && err.message) || "Не удалось удалить сертификат.";
+        if (isSessionError(message)) {
+          handleExpiredSession(message);
+        } else {
+          setCertsBanner(message, true);
+        }
         haptic("error");
       });
+  }
+
+  function showLoginError(text) {
+    if (!els.loginError) return;
+    els.loginError.hidden = !text;
+    els.loginError.textContent = text || "";
+  }
+
+  function openLoginModal(presetError) {
+    if (!els.loginModal) return;
+    var hasBackend = !!backendUrl();
+    if (els.loginBackendHint) els.loginBackendHint.hidden = hasBackend;
+    if (els.loginForm) els.loginForm.hidden = !hasBackend;
+    if (els.loginIntro) {
+      els.loginIntro.hidden = !hasBackend;
+    }
+    showLoginError(hasBackend ? (presetError || "") : "");
+    if (els.loginPassword) els.loginPassword.value = "";
+    if (els.loginSubmitBtn) els.loginSubmitBtn.disabled = false;
+    els.loginModal.hidden = false;
+    document.body.classList.add("modal-open");
+    if (hasBackend && els.loginPassword) {
+      try {
+        els.loginPassword.focus();
+      } catch (e) {}
+    }
+  }
+
+  function closeLoginModal() {
+    if (!els.loginModal) return;
+    els.loginModal.hidden = true;
+    document.body.classList.remove("modal-open");
+    showLoginError("");
+    if (els.loginPassword) els.loginPassword.value = "";
+  }
+
+  function submitLogin(event) {
+    if (event) event.preventDefault();
+    if (!backendUrl()) {
+      openLoginModal();
+      return;
+    }
+    var password = els.loginPassword ? String(els.loginPassword.value || "") : "";
+    if (!password) {
+      showLoginError("Введите пароль.");
+      haptic("error");
+      return;
+    }
+    if (els.loginSubmitBtn) els.loginSubmitBtn.disabled = true;
+    showLoginError("");
+    postJson({ action: "login", password: password }, { requireJson: true })
+      .then(function (data) {
+        if (els.loginPassword) els.loginPassword.value = "";
+        if (!data || !data.token) {
+          throw new Error("Сервер не вернул сессию");
+        }
+        setOwnerToken(data.token);
+        closeLoginModal();
+        updateOwnerUi();
+        renderCertificates();
+        haptic("success");
+      })
+      .catch(function (err) {
+        if (els.loginPassword) els.loginPassword.value = "";
+        showLoginError((err && err.message) || "Не удалось войти. Попробуйте ещё раз.");
+        haptic("error");
+      })
+      .then(function () {
+        if (els.loginSubmitBtn) els.loginSubmitBtn.disabled = false;
+      });
+  }
+
+  function logoutOwner() {
+    var token = getOwnerToken();
+    setOwnerToken("");
+    hideCertForm();
+    updateOwnerUi();
+    renderCertificates();
+    closeLoginModal();
+    if (token && backendUrl()) {
+      postJson({ action: "logout", token: token }, { requireJson: true }).catch(function () {});
+    }
+    haptic("light");
   }
 
   function cacheElements() {
@@ -1192,6 +1328,19 @@
       "panelReviews",
       "panelCertificates",
       "addCertBtn",
+      "ownerLockBtn",
+      "certsLogoutBtn",
+      "ownerLoginLink",
+      "ownerLogoutLink",
+      "loginModal",
+      "loginForm",
+      "loginIntro",
+      "loginBackendHint",
+      "loginPassword",
+      "loginError",
+      "loginSubmitBtn",
+      "loginClose",
+      "certsEmptyText",
       "certsBackendHint",
       "certsBanner",
       "certsGrid",
@@ -1255,6 +1404,33 @@
     if (els.certsEmptyCta) {
       els.certsEmptyCta.addEventListener("click", showCertForm);
     }
+    if (els.ownerLockBtn) {
+      els.ownerLockBtn.addEventListener("click", function () {
+        openLoginModal();
+      });
+    }
+    if (els.ownerLoginLink) {
+      els.ownerLoginLink.addEventListener("click", function () {
+        openLoginModal();
+      });
+    }
+    if (els.certsLogoutBtn) {
+      els.certsLogoutBtn.addEventListener("click", logoutOwner);
+    }
+    if (els.ownerLogoutLink) {
+      els.ownerLogoutLink.addEventListener("click", logoutOwner);
+    }
+    if (els.loginForm) {
+      els.loginForm.addEventListener("submit", submitLogin);
+    }
+    if (els.loginClose) {
+      els.loginClose.addEventListener("click", closeLoginModal);
+    }
+    if (els.loginModal) {
+      els.loginModal.addEventListener("click", function (event) {
+        if (event.target === els.loginModal) closeLoginModal();
+      });
+    }
     if (els.certForm) {
       els.certForm.addEventListener("submit", submitCertificate);
     }
@@ -1302,7 +1478,12 @@
       });
     }
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") closeLightbox();
+      if (event.key !== "Escape") return;
+      if (els.loginModal && !els.loginModal.hidden) {
+        closeLoginModal();
+        return;
+      }
+      closeLightbox();
     });
     window.addEventListener("hashchange", function () {
       setTab(tabFromHash(), { skipHash: true, silent: true });

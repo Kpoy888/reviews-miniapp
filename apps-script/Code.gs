@@ -3,10 +3,8 @@
  *
  * Как публиковать:
  * 1. Расширения → Apps Script, вставьте этот файл.
- * 2. В настройках проекта добавьте свойства скрипта:
- *    BOT_TOKEN           — токен бота от @BotFather
- *    OWNER_TELEGRAM_ID   — ваш числовой Telegram ID (например, от @userinfobot)
- *    Их нельзя хранить во фронтенде или в репозитории.
+ * 2. В настройках проекта добавьте свойство скрипта:
+ *    ADMIN_PASSWORD — длинный пароль владельца (только здесь, не во фронтенде).
  * 3. Запустите setup() один раз и выдайте доступ к таблице и Google Диску.
  * 4. Развернуть → Новое развёртывание → Веб-приложение:
  *    - Выполнять от имени: Меня
@@ -16,11 +14,10 @@
  *    Развернуть → Управление развёртываниями → карандаш → Новая версия.
  *
  * Модерация отзывов: в таблице столбец approved. По умолчанию FALSE.
- * Чтобы отзыв появился в Mini App, поставьте TRUE.
+ * Чтобы отзыв появился на сайте, поставьте TRUE.
  *
- * Сертификаты публикуются сразу. Добавлять и удалять их может только владелец:
- * запрос должен содержать Telegram.WebApp.initData, подпись проверяется
- * по документации Telegram, user.id должен совпасть с OWNER_TELEGRAM_ID.
+ * Сертификаты публикуются сразу. Добавлять и удалять их может только владелец
+ * после входа по паролю: сервер выдаёт сессионный токен (CacheService, 6 часов).
  *
  * Публичный URL картинки с Диска (файл доступен «всем, у кого есть ссылка»):
  *   https://drive.google.com/thumbnail?id=FILE_ID&sz=w1600
@@ -35,8 +32,16 @@ var RATE_LIMIT_MINUTES = 15;
 var MIN_TEXT = 10;
 var MAX_TEXT = 1000;
 var MAX_NAME = 80;
-var INIT_DATA_MAX_AGE_SEC = 24 * 60 * 60;
 var MAX_FILE_BYTES = 5 * 1024 * 1024;
+var SESSION_TTL_SEC = 6 * 60 * 60;
+var SESSION_CACHE_PREFIX = 'sess_';
+var LOGIN_FAIL_MAX = 5;
+var LOGIN_FAIL_WINDOW_SEC = 15 * 60;
+var LOGIN_FAIL_CACHE_KEY = 'login_fails';
+var LOGIN_FAIL_SLEEP_MS = 500;
+var GLOBAL_REVIEW_CAP = 10;
+var GLOBAL_REVIEW_WINDOW_SEC = 60;
+var GLOBAL_REVIEW_CACHE_KEY = 'reviews_per_min';
 var CATEGORIES = {
   support: 'ИИ-автоматизация техподдержки',
   design: 'Проектирование'
@@ -89,6 +94,12 @@ function doPost(e) {
     }
     var data = JSON.parse(e.postData.contents);
     var action = String((data && data.action) || 'addReview');
+    if (action === 'login') {
+      return jsonOutput(loginOwner(data));
+    }
+    if (action === 'logout') {
+      return jsonOutput(logoutOwner(data));
+    }
     if (action === 'addCertificate') {
       return jsonOutput(addCertificate(data));
     }
@@ -99,6 +110,71 @@ function doPost(e) {
   } catch (err) {
     return jsonOutput({ ok: false, error: 'Некорректные данные' });
   }
+}
+
+/* ===================== Вход владельца ===================== */
+
+function loginOwner(data) {
+  data = data || {};
+  var cache = CacheService.getScriptCache();
+  var expected = String(
+    PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD') || ''
+  );
+  if (!expected) {
+    Utilities.sleep(LOGIN_FAIL_SLEEP_MS);
+    return { ok: false, error: 'Пароль владельца не настроен' };
+  }
+
+  var fails = Number(cache.get(LOGIN_FAIL_CACHE_KEY) || 0);
+  if (fails >= LOGIN_FAIL_MAX) {
+    return { ok: false, error: 'Слишком много попыток, попробуйте позже' };
+  }
+
+  var password = String(data.password == null ? '' : data.password);
+  if (!safeEqual(password, expected)) {
+    cache.put(LOGIN_FAIL_CACHE_KEY, String(fails + 1), LOGIN_FAIL_WINDOW_SEC);
+    Utilities.sleep(LOGIN_FAIL_SLEEP_MS);
+    return { ok: false, error: 'Неверный пароль' };
+  }
+
+  cache.remove(LOGIN_FAIL_CACHE_KEY);
+  var token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  cache.put(SESSION_CACHE_PREFIX + token, 'owner', SESSION_TTL_SEC);
+  return { ok: true, token: token, expiresIn: SESSION_TTL_SEC };
+}
+
+function logoutOwner(data) {
+  var token = String((data && data.token) || '');
+  if (token) {
+    CacheService.getScriptCache().remove(SESSION_CACHE_PREFIX + token);
+  }
+  return { ok: true };
+}
+
+function requireOwner(data) {
+  var token = String((data && data.token) || '');
+  if (!token) {
+    return { ok: false, error: 'Нужна авторизация владельца' };
+  }
+  var cache = CacheService.getScriptCache();
+  var key = SESSION_CACHE_PREFIX + token;
+  if (cache.get(key) !== 'owner') {
+    return { ok: false, error: 'Сессия истекла. Войдите снова.' };
+  }
+  cache.put(key, 'owner', SESSION_TTL_SEC);
+  return { ok: true };
+}
+
+function safeEqual(a, b) {
+  a = String(a || '');
+  b = String(b || '');
+  var max = Math.max(a.length, b.length);
+  var diff = a.length ^ b.length;
+  var i;
+  for (i = 0; i < max; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
 }
 
 /* ===================== Отзывы ===================== */
@@ -138,18 +214,6 @@ function addReview(data, e) {
   var telegramId = sanitizeText(data.telegramId, 32);
   var telegramUsername = sanitizeText(String(data.telegramUsername || '').replace(/^@/, ''), 64);
 
-  // Если пришёл initData, проверяем подпись и берём доверенный user.id
-  // для антиспама. Если initData нет — поведение как раньше.
-  if (data.initData) {
-    var verified = validateTelegramInitData(String(data.initData), { requireOwner: false });
-    if (verified.ok && verified.user) {
-      telegramId = sanitizeText(String(verified.user.id), 32);
-      if (verified.user.username) {
-        telegramUsername = sanitizeText(String(verified.user.username).replace(/^@/, ''), 64);
-      }
-    }
-  }
-
   if (!name || name.length < 2) {
     return { ok: false, error: 'Укажите имя' };
   }
@@ -167,6 +231,9 @@ function addReview(data, e) {
   }
 
   var rateKey = telegramId || ('anon:' + simpleHash(name + '|' + userAgentOf(e)));
+  if (isGlobalReviewCapped()) {
+    return { ok: false, error: 'Слишком много отзывов за короткое время. Попробуйте позже.' };
+  }
   if (isRateLimited(rateKey)) {
     return {
       ok: false,
@@ -177,6 +244,9 @@ function addReview(data, e) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    if (isGlobalReviewCapped()) {
+      return { ok: false, error: 'Слишком много отзывов за короткое время. Попробуйте позже.' };
+    }
     if (isRateLimited(rateKey)) {
       return {
         ok: false,
@@ -199,6 +269,7 @@ function addReview(data, e) {
       userAgentOf(e)
     ]);
     rememberSubmission(rateKey);
+    rememberGlobalReview();
     return { ok: true, id: id, approved: false };
   } finally {
     lock.releaseLock();
@@ -263,7 +334,7 @@ function getCertificates() {
 
 function addCertificate(data) {
   data = data || {};
-  var auth = requireOwner(data.initData);
+  var auth = requireOwner(data);
   if (!auth.ok) return auth;
 
   var title = sanitizeText(data.title, 120);
@@ -328,7 +399,7 @@ function addCertificate(data) {
 
 function deleteCertificate(data) {
   data = data || {};
-  var auth = requireOwner(data.initData);
+  var auth = requireOwner(data);
   if (!auth.ok) return auth;
 
   var id = sanitizeText(data.id, 80);
@@ -505,123 +576,6 @@ function sanitizeMultiline(value, max) {
     .slice(0, max);
 }
 
-/* ===================== Проверка initData Telegram ===================== */
-
-/**
- * Проверка подписи Mini App initData по документации Telegram:
- *   secret_key = HMAC_SHA256(key='WebAppData', msg=bot_token)
- *   data_check_string = отсортированные пары key=value (кроме hash), через \n
- *   hash = hex(HMAC_SHA256(key=secret_key, msg=data_check_string))
- *
- * В Apps Script: Utilities.computeHmacSha256Signature(message, key).
- * Первый вызов: message = bot_token, key = строка 'WebAppData'.
- * Второй вызов: message = data_check_string, key = СЫРЫЕ байты первого HMAC
- * (не hex и не строка). Байты первого HMAC нельзя перекодировать в текст.
- */
-function requireOwner(initData) {
-  return validateTelegramInitData(String(initData || ''), { requireOwner: true });
-}
-
-function validateTelegramInitData(initData, options) {
-  options = options || {};
-  var props = PropertiesService.getScriptProperties();
-  var botToken = String(props.getProperty('BOT_TOKEN') || '').trim();
-  if (!botToken) {
-    return { ok: false, error: 'Не задан BOT_TOKEN в свойствах скрипта' };
-  }
-  var params = parseQueryString(initData);
-  var receivedHash = String(params.hash || '').toLowerCase();
-  if (!receivedHash) {
-    return { ok: false, error: 'Нет подписи Telegram' };
-  }
-  var keys = [];
-  for (var key in params) {
-    if (Object.prototype.hasOwnProperty.call(params, key) && key !== 'hash') {
-      keys.push(key);
-    }
-  }
-  keys.sort();
-  var dataCheckString = keys.map(function (k) {
-    return k + '=' + params[k];
-  }).join('\n');
-
-  var secretKey = Utilities.computeHmacSha256Signature(botToken, 'WebAppData');
-  var signatureBytes = Utilities.computeHmacSha256Signature(dataCheckString, secretKey);
-  var computedHash = toHex(signatureBytes);
-  if (!safeEqual(computedHash, receivedHash)) {
-    return { ok: false, error: 'Недействительная подпись Telegram' };
-  }
-
-  var authDate = parseInt(params.auth_date, 10);
-  var now = Math.floor(Date.now() / 1000);
-  if (!authDate) {
-    return { ok: false, error: 'Нет даты подписи' };
-  }
-  if (now - authDate > INIT_DATA_MAX_AGE_SEC || authDate > now + 60) {
-    return { ok: false, error: 'Сессия Telegram устарела. Откройте Mini App заново.' };
-  }
-
-  var user = null;
-  try {
-    user = JSON.parse(params.user || 'null');
-  } catch (err) {
-    return { ok: false, error: 'Некорректные данные пользователя' };
-  }
-  if (!user || user.id == null || user.id === '') {
-    return { ok: false, error: 'Нет данных пользователя Telegram' };
-  }
-
-  if (options.requireOwner) {
-    var ownerId = String(props.getProperty('OWNER_TELEGRAM_ID') || '').trim();
-    if (!ownerId) {
-      return { ok: false, error: 'Не задан OWNER_TELEGRAM_ID в свойствах скрипта' };
-    }
-    if (String(user.id) !== ownerId) {
-      return { ok: false, error: 'Недостаточно прав' };
-    }
-  }
-  return { ok: true, user: user };
-}
-
-function parseQueryString(raw) {
-  var params = {};
-  String(raw || '').split('&').forEach(function (part) {
-    if (!part) return;
-    var idx = part.indexOf('=');
-    var key = idx === -1 ? part : part.slice(0, idx);
-    var val = idx === -1 ? '' : part.slice(idx + 1);
-    try {
-      key = decodeURIComponent(key);
-      val = decodeURIComponent(val.replace(/\+/g, ' '));
-    } catch (err) {
-      return;
-    }
-    params[key] = val;
-  });
-  return params;
-}
-
-function toHex(bytes) {
-  var out = [];
-  for (var i = 0; i < bytes.length; i++) {
-    var v = u8(bytes[i]);
-    var hex = v.toString(16);
-    out.push(hex.length === 1 ? '0' + hex : hex);
-  }
-  return out.join('');
-}
-
-function safeEqual(a, b) {
-  a = String(a || '');
-  b = String(b || '');
-  var max = Math.max(a.length, b.length);
-  var diff = a.length ^ b.length;
-  for (var i = 0; i < max; i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
-}
-
 /* ===================== Общие утилиты ===================== */
 
 function indexMap(headers, expected) {
@@ -672,14 +626,27 @@ function toIso(value) {
   return String(value);
 }
 
+function cacheService() {
+  return CacheService.getScriptCache();
+}
+
+function isGlobalReviewCapped() {
+  var count = Number(cacheService().get(GLOBAL_REVIEW_CACHE_KEY) || 0);
+  return count >= GLOBAL_REVIEW_CAP;
+}
+
+function rememberGlobalReview() {
+  var cache = cacheService();
+  var count = Number(cache.get(GLOBAL_REVIEW_CACHE_KEY) || 0);
+  cache.put(GLOBAL_REVIEW_CACHE_KEY, String(count + 1), GLOBAL_REVIEW_WINDOW_SEC);
+}
+
 function isRateLimited(key) {
-  var props = PropertiesService.getScriptProperties();
-  var last = Number(props.getProperty(rateLimitKey(key)) || 0);
-  return Date.now() - last < RATE_LIMIT_MINUTES * 60 * 1000;
+  return !!cacheService().get(rateLimitKey(key));
 }
 
 function rememberSubmission(key) {
-  PropertiesService.getScriptProperties().setProperty(rateLimitKey(key), String(Date.now()));
+  cacheService().put(rateLimitKey(key), '1', RATE_LIMIT_MINUTES * 60);
 }
 
 function rateLimitKey(key) {

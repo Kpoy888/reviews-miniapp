@@ -45,6 +45,10 @@ html[data-theme="light"] {
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   background: var(--tg-theme-bg-color, var(--bg));
   color: var(--tg-theme-text-color, var(--text));
@@ -505,6 +509,7 @@ html[data-theme="light"] .service-tags li {
 }
 
 input[type="text"],
+input[type="password"],
 textarea {
   width: 100%;
   border: 1px solid var(--border);
@@ -519,6 +524,7 @@ textarea {
 }
 
 input[type="text"]:focus,
+input[type="password"]:focus,
 textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -633,6 +639,29 @@ body.is-telegram .form-section .submit-btn {
   margin-top: 22px;
   text-align: center;
   font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.owner-login-link,
+.owner-logout-link {
+  display: block;
+  margin: 10px auto 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.owner-login-link:hover,
+.owner-logout-link:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 .contact-link {
@@ -1082,4 +1111,121 @@ body.lightbox-open {
   .cert-form-section {
     padding: 16px 14px 14px;
   }
+}
+
+.certs-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.owner-lock-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.owner-lock-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.owner-lock-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+body.is-owner .owner-lock-btn,
+body:not(.is-owner) .add-cert-btn,
+body:not(.is-owner) .owner-logout-btn,
+body:not(.is-owner) .owner-logout-link,
+body.is-owner .owner-login-link {
+  display: none !important;
+}
+
+.owner-logout-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.owner-logout-btn:hover {
+  color: var(--text);
+}
+
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(5, 8, 14, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.login-modal[hidden] {
+  display: none;
+}
+
+.login-dialog {
+  position: relative;
+  width: min(100%, 400px);
+  padding: 28px 20px 20px;
+  border-radius: 24px;
+  background: var(--tg-theme-secondary-bg-color, var(--bg-elevated));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.login-dialog h2 {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+  padding-right: 36px;
+}
+
+.login-dialog .form-intro {
+  margin-bottom: 16px;
+}
+
+.login-dialog .certs-hint {
+  margin: 0 0 14px;
+}
+
+.login-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.modal-open {
+  overflow: hidden;
 }
